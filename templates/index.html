@@ -6,6 +6,11 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <div id="page-nav">
+    <form id="page-form">
+      <input id="page-input" type="number" min="1" value="1"/> / <span id="page-total"></span>
+    </form>
+  </div>
   <div id="container">
     <div id="left">
       <div id="media-info"></div>
@@ -13,8 +18,8 @@
     </div>
 
    <div id="right">
-+    <!-- ★ system_label_meta_txt 會顯示在這裡 -->
-+    <h4 id="quick-name"></h4>
+    <!-- ★ system_label_meta_txt 會顯示在這裡 -->
+    <h4 id="quick-name"></h4>
      <div id="anno-area"></div>
      <textarea id="quick-label"
                placeholder="在此輸入快速標籤，按 → 儲存並下一張"></textarea>
