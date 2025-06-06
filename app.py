@@ -34,9 +34,10 @@ def build_index(root: Path):
       例：image1.jpg,  image1.caption_txt,  image1._txt
     """
     groups: dict[str, list[Path]] = defaultdict(list)
-    for fp in root.iterdir():
+    for fp in root.rglob('*'):
         if fp.is_file() and '.' in fp.name:
-            base = fp.name.rsplit('.', 1)[0]
+            rel  = fp.relative_to(root)
+            base = str(rel).rsplit('.', 1)[0]
             groups[base].append(fp)
 
     for data_id, files in sorted(groups.items()):
@@ -101,15 +102,15 @@ def api_item(idx: int):
             txt = f.read_text(encoding='utf-8', errors='ignore')
         except Exception:
             txt = ''
-        annos.append({'filename': f.name, 'content': txt})
+        annos.append({'filename': str(f.relative_to(DATA_ROOT)), 'content': txt})
 
     preload(idx)
     return jsonify({
         'idx'        : idx,
         'id'         : ent['id'],
-        'media_url'  : f'/file/{fp.name}',
+        'media_url'  : f'/file/{fp.relative_to(DATA_ROOT)}',
         'media_kind' : kind,
-        'media_name' : fp.name,
+        'media_name' : str(fp.relative_to(DATA_ROOT)),
         'annotations': annos
     })
 
