@@ -4,12 +4,17 @@ let currentIdx = 0;
 const cacheItems = {};      // idx -> item json
 
 /* ---------------- 初始化 ------------------ */
-window.addEventListener('DOMContentLoaded', () => {
-  loadItem(0);
-  document.addEventListener('keydown', onKey);
-  document.getElementById('quick-label').focus();
+window.addEventListener("DOMContentLoaded", () => {
+  const last = parseInt(localStorage.getItem("lastIdx")) || 0;
+  loadItem(Math.min(Math.max(last,0), TOTAL-1));
+  document.addEventListener("keydown", onKey);
+  document.getElementById("quick-label").focus();
+  document.getElementById("page-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const val = parseInt(document.getElementById("page-input").value);
+    if(!isNaN(val)) loadItem(Math.min(Math.max(val-1,0), TOTAL-1));
+  });
 });
-
 /* ---------------- 資料載入 ---------------- */
 async function loadItem(idx) {
   if (cacheItems[idx]) {
@@ -25,6 +30,9 @@ async function loadItem(idx) {
 /* ---------------- 主渲染 ------------------ */
 function render(d) {
   currentIdx = d.idx;
+  document.getElementById("page-input").value = d.idx + 1;
+  document.getElementById("page-total").textContent = TOTAL;
+  localStorage.setItem("lastIdx", d.idx);
   document.getElementById('media-info').textContent = d.media_name;
 
   /* ── 左側媒體 ───────────────────────────*/

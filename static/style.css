@@ -1,5 +1,7 @@
 /* ── 版面 ───────────────────────────────────────── */
 html,body{margin:0;height:100%;font-family:Arial,Helvetica,sans-serif;}
+#page-nav{position:fixed;top:0;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);color:#fff;padding:4px 8px;font-size:14px;z-index:1000;}
+#page-nav input{width:60px;}
 #container{display:flex;height:100%;}
 /* 左側 ──────────────────────────────────────── */
 #left{flex:1;position:relative;display:flex;justify-content:center;align-items:center;background:#111;}
