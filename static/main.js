@@ -3,6 +3,11 @@ const QUICK_LABEL_NAME = 'system_label_meta_txt';
 let currentIdx = 0;
 const cacheItems = {};      // idx -> item json
 
+function updateLeftBg(kind) {
+  const left = document.getElementById('left');
+  left.style.background = (kind === 'text') ? '#fff' : '#111';
+}
+
 /* ---------------- 初始化 ------------------ */
 window.addEventListener('DOMContentLoaded', () => {
   loadItem(0);
@@ -26,6 +31,8 @@ async function loadItem(idx) {
 function render(d) {
   currentIdx = d.idx;
   document.getElementById('media-info').textContent = d.media_name;
+
+  updateLeftBg(d.media_kind);
 
   /* ── 左側媒體 ───────────────────────────*/
   const area = document.getElementById('media-area');
