@@ -26,7 +26,10 @@
    </div>
   </div>
 
-  <script>const TOTAL={{ total }};</script>
+  <script>
+    const TOTAL = {{ total }};
+    const DIR_MODE = {{ 'true' if dir_mode else 'false' }};
+  </script>
   <script src="/static/main.js"></script>
 </body>
 </html>

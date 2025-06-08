@@ -1,5 +1,7 @@
 /* ---------------- 全域常數 ---------------- */
-const QUICK_LABEL_NAME = 'system_label_meta_txt';
+const QUICK_LABEL_NAME = DIR_MODE ? 'system_label_dir_meta_txt'
+                                 : 'system_label_meta_txt';
+let dirMode = DIR_MODE;
 let currentIdx = 0;
 const cacheItems = {};      // idx -> item json
 
@@ -61,9 +63,10 @@ function render(d) {
   const annoDiv = document.getElementById('anno-area');
   annoDiv.innerHTML = '';
 
-  let quickInit = '';
+  let quickInit = dirMode ? (d.dir_label || '') : '';
   d.annotations.forEach(a => {
-    if (a.filename.endsWith('.' + QUICK_LABEL_NAME)) {
+    const isQuick = a.filename.endsWith('.' + QUICK_LABEL_NAME);
+    if (!dirMode && isQuick) {
       quickInit = a.content.trim();
       return;
     }
@@ -77,13 +80,17 @@ function render(d) {
     const ta = document.createElement('textarea');
     ta.value = a.content;
     ta.dataset.filename = a.filename;
+    if (a.filename.endsWith('.system_label_meta_txt')) {
+      ta.disabled = true;
+    }
     blk.appendChild(ta);
 
     annoDiv.appendChild(blk);
   });
 
-  document.getElementById('quick-name').textContent =
-        `${d.id}.${QUICK_LABEL_NAME}`;
+  const quickFile = dirMode ? `${d.dir_name}/${QUICK_LABEL_NAME}`
+                            : `${d.id}.${QUICK_LABEL_NAME}`;
+  document.getElementById('quick-name').textContent = quickFile;
   const quickBox = document.getElementById('quick-label');
   quickBox.value = quickInit;
   quickBox.focus();
@@ -93,6 +100,8 @@ function render(d) {
 function onKey(e) {
   if (e.key === 'ArrowRight') { e.preventDefault(); saveThenMove(+1); }
   if (e.key === 'ArrowLeft')  { e.preventDefault(); saveThenMove(-1); }
+  if (dirMode && e.key === 'ArrowDown') { e.preventDefault(); moveDir(+1); }
+  if (dirMode && e.key === 'ArrowUp')   { e.preventDefault(); moveDir(-1); }
 }
 
 /* ---------------- 儲存並移動 -------------- */
@@ -112,7 +121,7 @@ async function saveThenMove(step) {
 
 /* ---------------- 儲存當前 ---------------- */
 async function saveCurrent() {
-  const annos = [...document.querySelectorAll('#anno-area textarea')]
+  const annos = [...document.querySelectorAll('#anno-area textarea:not([disabled])')]
                 .map(t => ({ filename: t.dataset.filename, content: t.value }));
   const quick = document.getElementById('quick-label').value.trim();
 
@@ -124,4 +133,12 @@ async function saveCurrent() {
 
   /* ▲ 失效目前快取，確保下次載入時拿到最新內容 */
   delete cacheItems[currentIdx];
+}
+
+function moveDir(step) {
+  const d = cacheItems[currentIdx];
+  const next = step > 0 ? d.dir_next_idx : d.dir_prev_idx;
+  if (typeof next === 'number') {
+    loadItem(next);
+  }
 }
