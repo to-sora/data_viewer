@@ -102,7 +102,7 @@ python app.py -h
 
 ```json
 {
-  "ordering": ["caption\\d+_txt", "OCR_json", "OCR_txt", "meta_json"],
+  "ordering": ["meta_json", "WD14_txt", "caption\\d+_txt"],
   "annotations": {
     "caption\\d+_txt": {
       "readonly": false
@@ -138,4 +138,7 @@ python app.py /data/images --template examples/template.demo.json
 ```
 
 完成後，`caption2_txt` 可直接編輯，`OCR_json` 與 `OCR_txt` 則僅顯示對應函式摘要且禁止修改。
+
+若有標註檔未在模板設定中出現，頁面會隱藏之並於右上角顯示隱藏數量。預設排序規則為
+`meta_json`、`WD14_txt`、`caption\d+_txt`，其餘依字母順序排列。
 

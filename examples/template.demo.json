@@ -1,9 +1,8 @@
 {
   "ordering": [
-    "caption\\d+_txt",
-    "OCR_json",
-    "OCR_txt",
-    "meta_json"
+    "meta_json",
+    "WD14_txt",
+    "caption\\d+_txt"
   ],
   "annotations": {
     "caption\\d+_txt": {

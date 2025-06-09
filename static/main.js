@@ -84,7 +84,8 @@ function render(d) {
     h4.textContent = a.filename;
     blk.appendChild(h4);
 
-    if (a.functions && a.functions.length) {
+    const hasFunc = a.functions && a.functions.length;
+    if (hasFunc) {
       const tbl = document.createElement('table');
       tbl.className = 'anno-func-table';
       a.functions.forEach(fn => {
@@ -112,14 +113,16 @@ function render(d) {
       blk.appendChild(tbl);
     }
 
-    const ta = document.createElement('textarea');
-    ta.value = a.content;
-    ta.dataset.filename = a.filename;
-    if (a.filename.endsWith('.system_label_meta_txt') || a.readonly) {
-      ta.disabled = true;
-      ta.classList.add('readonly');
+    if (!hasFunc) {
+      const ta = document.createElement('textarea');
+      ta.value = a.content;
+      ta.dataset.filename = a.filename;
+      if (a.filename.endsWith('.system_label_meta_txt') || a.readonly) {
+        ta.disabled = true;
+        ta.classList.add('readonly');
+      }
+      blk.appendChild(ta);
     }
-    blk.appendChild(ta);
 
     annoDiv.appendChild(blk);
   });
@@ -130,6 +133,14 @@ function render(d) {
   const quickBox = document.getElementById('quick-label');
   quickBox.value = quickInit;
   quickBox.focus();
+
+  const hLbl = document.getElementById('hidden-label');
+  if (d.hidden_count && d.hidden_count > 0) {
+    hLbl.textContent = `HIDDEN ${d.hidden_count}`;
+    hLbl.style.display = 'block';
+  } else {
+    hLbl.style.display = 'none';
+  }
 }
 
 /* ---------------- 鍵盤事件 ---------------- */

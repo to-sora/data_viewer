@@ -37,7 +37,8 @@ DEBUG_MODE        = cli_args.debug
 QUICK_LABEL_NAME  = 'system_label_meta_txt'
 DIR_LABEL_NAME    = 'system_label_dir_meta_txt'
 TEMPLATE_CONFIG   = {}
-ORDERING_PATTERNS: list[re.Pattern] = []
+DEFAULT_ORDERING = ['meta_json', 'WD14_txt', 'caption\\d+_txt']
+ORDERING_PATTERNS: list[re.Pattern] = [re.compile(p) for p in DEFAULT_ORDERING]
 ANNOTATION_RULES: list[tuple[re.Pattern, dict]] = []
 
 if cli_args.template:
@@ -55,7 +56,7 @@ if cli_args.template:
 
 if TEMPLATE_CONFIG:
     ORDERING_PATTERNS = [re.compile(p) for p in
-                         TEMPLATE_CONFIG.get('ordering', [])
+                         TEMPLATE_CONFIG.get('ordering', DEFAULT_ORDERING)
                          if isinstance(p, str)]
     ann = TEMPLATE_CONFIG.get('annotations') or {}
     for pat, cfg in ann.items():
@@ -133,7 +134,7 @@ def build_index(root: Path, template: dict | None = None):
                     if pat.fullmatch(f.name):
                         return i
                 return len(ordering)
-            annos.sort(key=prio_ann)
+            annos.sort(key=lambda f: (prio_ann(f), f.name))
 
         rel_media = media.relative_to(root)
         dir_name  = rel_media.parts[0] if len(rel_media.parts) > 1 else ''
@@ -185,6 +186,7 @@ def api_item(idx: int):
             'text')
 
     annos = []
+    hidden_count = 0
     for f in ent['annos']:
         try:
             txt = f.read_text(encoding='utf-8', errors='ignore')
@@ -197,6 +199,9 @@ def api_item(idx: int):
             if pat.fullmatch(name_part):
                 rule = cfg
                 break
+        if TEMPLATE_CONFIG and not rule and not f.name.endswith('.' + QUICK_LABEL_NAME):
+            hidden_count += 1
+            continue
         readonly = rule['readonly'] if rule else False
         funcs = []
         if rule and rule['functions']:
@@ -265,7 +270,8 @@ def api_item(idx: int):
         'dir_name'    : dir_name,
         'dir_label'   : dir_label,
         'dir_prev_idx': dir_prev_idx,
-        'dir_next_idx': dir_next_idx
+        'dir_next_idx': dir_next_idx,
+        'hidden_count': hidden_count
     })
 
 @app.route('/api/item/<int:idx>', methods=['POST'])
