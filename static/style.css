@@ -17,7 +17,8 @@ html,body{margin:0;height:100%;font-family:Arial,Helvetica,sans-serif;}
 .anno-block textarea{width:100%;height:120px;resize:vertical;}
 .anno-block textarea.readonly{background:#e0f0ff;}
 .anno-func-table{width:100%;font-size:12px;margin:4px 0;}
-.anno-func-table td{padding:2px 4px;background:#f0f0f0;}
+.anno-func-table td{padding:2px 4px;background:#f0f0f0;vertical-align:top;}
+.func-match{color:#c00;font-weight:bold;}
 #quick-label{width:100%;height:40px;margin-top:8px;font-size:18px;}
 #quick-name{margin:0 0 6px 0;font-weight:bold;}
 #debug-label{position:fixed;top:0;right:0;background:#c00;color:#fff;

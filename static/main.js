@@ -89,11 +89,24 @@ function render(d) {
       tbl.className = 'anno-func-table';
       a.functions.forEach(fn => {
         const tr = document.createElement('tr');
-        const td = document.createElement('td');
-        td.textContent = fn.name;
-        if (fn.value)
-          td.title = fn.value;
-        tr.appendChild(td);
+        const nameTd = document.createElement('td');
+        nameTd.textContent = fn.name;
+        const valTd = document.createElement('td');
+        valTd.title = fn.value;
+        if (fn.highlight && fn.value.includes(fn.highlight)) {
+          const idx = fn.value.indexOf(fn.highlight);
+          valTd.appendChild(document.createTextNode(fn.value.slice(0, idx)));
+          const span = document.createElement('span');
+          span.className = 'func-match';
+          span.textContent = fn.highlight;
+          valTd.appendChild(span);
+          valTd.appendChild(document.createTextNode(
+            fn.value.slice(idx + fn.highlight.length)));
+        } else {
+          valTd.textContent = fn.value;
+        }
+        tr.appendChild(nameTd);
+        tr.appendChild(valTd);
         tbl.appendChild(tr);
       });
       blk.appendChild(tbl);

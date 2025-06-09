@@ -2,7 +2,8 @@
   "ordering": [
     "caption\\d+_txt",
     "OCR_json",
-    "OCR_txt"
+    "OCR_txt",
+    "meta_json"
   ],
   "annotations": {
     "caption\\d+_txt": {
@@ -18,6 +19,14 @@
       "readonly": true,
       "functions": [
         {"name": "Character name", "filter": "Character name :"}
+      ]
+    },
+    "meta_json": {
+      "readonly": true,
+      "functions": [
+        {"name": "first 10 characters", "filter": "data['author']['nick'][:10]"},
+        {"name": "describe", "filter": "data['author']['description']"},
+        {"name": "describe_post", "filter": "data['content']"}
       ]
     }
   }

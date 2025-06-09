@@ -215,6 +215,7 @@ def api_item(idx: int):
             for fc in rule['functions']:
                 val = ''
                 expr = fc.get('filter', '')
+                highlight = ''
                 if is_json and data_obj is not None:
                     try:
                         val = str(eval(expr, {}, {'data': data_obj}))
@@ -224,8 +225,11 @@ def api_item(idx: int):
                     for ln in lines:
                         if expr in ln:
                             val = ln
+                            highlight = expr
                             break
-                funcs.append({'name': fc.get('name', ''), 'value': val})
+                funcs.append({'name': fc.get('name', ''),
+                              'value': val,
+                              'highlight': highlight})
 
         annos.append({'filename': str(f.relative_to(DATA_ROOT)),
                       'content': txt,

@@ -98,11 +98,11 @@ python app.py -h
 
 ## 模板設定範例
 
-提供 `--template` 參數時，程式會依照 JSON/YAML 內容決定註解排序、唯讀欄位以及額外函式。以下為 `examples/template.demo.json` 範例：
+提供 `--template` 參數時，程式會依照 JSON/YAML 內容決定註解排序、唯讀欄位以及額外函式。函式結果會以二欄表格呈現，滑鼠移至值欄可檢視完整內容。以下為 `examples/template.demo.json` 範例：
 
 ```json
 {
-  "ordering": ["caption\\d+_txt", "OCR_json", "OCR_txt"],
+  "ordering": ["caption\\d+_txt", "OCR_json", "OCR_txt", "meta_json"],
   "annotations": {
     "caption\\d+_txt": {
       "readonly": false
@@ -117,6 +117,14 @@ python app.py -h
       "readonly": true,
       "functions": [
         {"name": "Character name", "filter": "Character name :"}
+      ]
+    }
+    , "meta_json": {
+      "readonly": true,
+      "functions": [
+        {"name": "first 10 characters", "filter": "data['author']['nick'][:10]"},
+        {"name": "describe", "filter": "data['author']['description']"},
+        {"name": "describe_post", "filter": "data['content']"}
       ]
     }
   }
