@@ -11,6 +11,9 @@ window.addEventListener("DOMContentLoaded", () => {
   if (debugMode) {
     console.warn("DEBUG MODE active");
   }
+  if (dirMode) {
+    console.info("DIRECTORY MODE active");
+  }
   const last = parseInt(localStorage.getItem("lastIdx")) || 0;
   loadItem(Math.min(Math.max(last,0), TOTAL-1));
   document.addEventListener("keydown", onKey);

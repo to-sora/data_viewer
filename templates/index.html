@@ -7,6 +7,7 @@
 </head>
 <body>
   {% if debug_mode %}<div id="debug-label">DEBUG</div>{% endif %}
+  {% if dir_mode %}<div id="dir-label">DIR MODE</div>{% endif %}
   <div id="page-nav">
     <form id="page-form">
       <input id="page-input" type="number" min="1" value="1"/> / <span id="page-total"></span>

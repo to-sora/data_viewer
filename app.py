@@ -207,7 +207,7 @@ if __name__ == '__main__':
     print(f'📂 Dataset: {DATA_ROOT}')
     print(f'🔢 Total  : {TOTAL} items')
     if DIR_MODE:
-        print('📁 Dir mode enabled')
+        print('📁 DIRECTORY MODE')
     if DEBUG_MODE:
         print('🛠 DEBUG MODE')
     app.run(host='0.0.0.0', port=49145, threaded=True)
