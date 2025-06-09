@@ -3,11 +3,15 @@
 Dataset Annotator  (port 49145)
 啟動：python app.py <dataset_path> [--dir]
 """
-import sys, io, mimetypes
+import sys, io, mimetypes, json, re
 import argparse
 from pathlib import Path
 from collections import defaultdict, OrderedDict
 from flask import Flask, request, jsonify, render_template, send_file, abort
+try:
+    import yaml  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    yaml = None
 
 # ─── 啟動參數 ──────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser(description='Simple dataset annotator')
@@ -16,6 +20,8 @@ parser.add_argument('--dir', action='store_true',
                     help='Label directories instead of individual files')
 parser.add_argument('--debug', action='store_true',
                     help='Show debug label in UI and CLI output')
+parser.add_argument('--template', type=str,
+                    help='Path to JSON/YAML template configuration')
 cli_args = parser.parse_args()
 
 # ─── 常數 ──────────────────────────────────────────────────────────────
@@ -30,6 +36,20 @@ DIR_MODE          = cli_args.dir
 DEBUG_MODE        = cli_args.debug
 QUICK_LABEL_NAME  = 'system_label_meta_txt'
 DIR_LABEL_NAME    = 'system_label_dir_meta_txt'
+TEMPLATE_CONFIG   = {}
+
+if cli_args.template:
+    try:
+        text = Path(cli_args.template).read_text(encoding='utf-8')
+        try:
+            TEMPLATE_CONFIG = json.loads(text)
+        except json.JSONDecodeError:
+            if yaml:
+                TEMPLATE_CONFIG = yaml.safe_load(text) or {}
+            else:
+                print('PyYAML not installed; YAML template unsupported', file=sys.stderr)
+    except Exception as e:
+        print(f'Failed to load template: {e}', file=sys.stderr)
 
 # ─── Flask 與全域狀態 ───────────────────────────────────────────────────
 app       = Flask(__name__, static_folder='static', static_url_path='/static')
@@ -38,7 +58,7 @@ INDEX: list[dict] = []                      # [{id, media, annos}]
 IMG_CACHE: OrderedDict[Path, bytes] = OrderedDict()
 
 # ─── 建立索引 ──────────────────────────────────────────────────────────
-def build_index(root: Path):
+def build_index(root: Path, template: dict | None = None):
     """
     命名規則  
       filename = A . B  
@@ -52,6 +72,10 @@ def build_index(root: Path):
             rel  = fp.relative_to(root)
             base = str(rel).rsplit('.', 1)[0]
             groups[base].append(fp)
+
+    ordering = []
+    if template:
+        ordering = [re.compile(p) for p in template.get('ordering', []) if isinstance(p, str)]
 
     for data_id, files in sorted(groups.items()):
         media_candidates = []
@@ -78,6 +102,14 @@ def build_index(root: Path):
                 **{e:3 for e in TEXT_EXTS}}
         media = sorted(media_candidates, key=lambda f: prio[f.suffix.lower()])[0]
 
+        if ordering:
+            def prio_ann(f: Path):
+                for i, pat in enumerate(ordering):
+                    if pat.fullmatch(f.name):
+                        return i
+                return len(ordering)
+            annos.sort(key=prio_ann)
+
         rel_media = media.relative_to(root)
         dir_name  = rel_media.parts[0] if len(rel_media.parts) > 1 else ''
 
@@ -86,7 +118,7 @@ def build_index(root: Path):
                       'annos': annos,
                       'dir'  : dir_name})
 
-build_index(DATA_ROOT)
+build_index(DATA_ROOT, TEMPLATE_CONFIG)
 TOTAL = len(INDEX)
 
 # 依據第一層資料夾建立索引（dir -> 首張 idx）
@@ -113,7 +145,8 @@ def preload(idx: int):
 @app.route('/')
 def home():
     return render_template('index.html', total=TOTAL,
-                           dir_mode=DIR_MODE, debug_mode=DEBUG_MODE)
+                           dir_mode=DIR_MODE, debug_mode=DEBUG_MODE,
+                           template=TEMPLATE_CONFIG)
 
 @app.route('/api/item/<int:idx>')
 def api_item(idx: int):
@@ -158,6 +191,7 @@ def api_item(idx: int):
         'media_kind'  : kind,
         'media_name'  : str(fp.relative_to(DATA_ROOT)),
         'annotations' : annos,
+        'template'    : TEMPLATE_CONFIG,
         'dir_name'    : dir_name,
         'dir_label'   : dir_label,
         'dir_prev_idx': dir_prev_idx,
