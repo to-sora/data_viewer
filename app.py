@@ -14,6 +14,8 @@ parser = argparse.ArgumentParser(description='Simple dataset annotator')
 parser.add_argument('dataset_path', help='Path to dataset root')
 parser.add_argument('--dir', action='store_true',
                     help='Label directories instead of individual files')
+parser.add_argument('--debug', action='store_true',
+                    help='Show debug label in UI and CLI output')
 cli_args = parser.parse_args()
 
 # ─── 常數 ──────────────────────────────────────────────────────────────
@@ -25,6 +27,7 @@ TEXT_EXTS    = {'.txt', '.csv', '.json', '.yaml', '.yml'}
 MEDIA_FILE_EXTS  = IMAGE_EXTS | VIDEO_EXTS | AUDIO_EXTS | TEXT_EXTS
 CACHE_SIZE        = 5
 DIR_MODE          = cli_args.dir
+DEBUG_MODE        = cli_args.debug
 QUICK_LABEL_NAME  = 'system_label_meta_txt'
 DIR_LABEL_NAME    = 'system_label_dir_meta_txt'
 
@@ -109,7 +112,8 @@ def preload(idx: int):
 # ─── API ──────────────────────────────────────────────────────────────
 @app.route('/')
 def home():
-    return render_template('index.html', total=TOTAL, dir_mode=DIR_MODE)
+    return render_template('index.html', total=TOTAL,
+                           dir_mode=DIR_MODE, debug_mode=DEBUG_MODE)
 
 @app.route('/api/item/<int:idx>')
 def api_item(idx: int):
@@ -204,4 +208,6 @@ if __name__ == '__main__':
     print(f'🔢 Total  : {TOTAL} items')
     if DIR_MODE:
         print('📁 Dir mode enabled')
+    if DEBUG_MODE:
+        print('🛠 DEBUG MODE')
     app.run(host='0.0.0.0', port=49145, threaded=True)

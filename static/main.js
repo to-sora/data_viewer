@@ -2,11 +2,15 @@
 const QUICK_LABEL_NAME = DIR_MODE ? 'system_label_dir_meta_txt'
                                  : 'system_label_meta_txt';
 let dirMode = DIR_MODE;
+let debugMode = typeof DEBUG_MODE !== 'undefined' ? DEBUG_MODE : false;
 let currentIdx = 0;
 const cacheItems = {};      // idx -> item json
 
 /* ---------------- 初始化 ------------------ */
 window.addEventListener("DOMContentLoaded", () => {
+  if (debugMode) {
+    console.warn("DEBUG MODE active");
+  }
   const last = parseInt(localStorage.getItem("lastIdx")) || 0;
   loadItem(Math.min(Math.max(last,0), TOTAL-1));
   document.addEventListener("keydown", onKey);

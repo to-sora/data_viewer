@@ -56,6 +56,8 @@ pip install flask
 # 4. 啟動（假設資料集位於 /data/images）
 python app.py /data/images              # 一般檔案模式
 python app.py /data/images --dir        # 以資料夾為單位標註
+# 啟用除錯標籤
+python app.py /data/images --debug
 # 查看所有選項
 python app.py -h
 # 伺服器監聽 http://0.0.0.0:{port}
@@ -76,6 +78,7 @@ python app.py -h
 | 快速標籤 | 直接輸入英數字後按 →     | 建立 / 覆寫 `*.system_label_meta_txt`<br>使用 `--dir` 時會寫入 `system_label_dir_meta_txt` |
 | 換資料夾 | ↑ / ↓ (Arrow Up/Down) | `--dir` 模式下，切換上一／下一資料夾 |
 | 編輯註解 | 右側 textarea     | 編輯完成後按 → 或 ← 立即儲存                 |
+| 除錯標籤 | --debug           | 頁面右上會出現紅色 DEBUG 標示               |
 
 ---
 

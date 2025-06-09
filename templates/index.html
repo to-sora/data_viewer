@@ -6,6 +6,7 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  {% if debug_mode %}<div id="debug-label">DEBUG</div>{% endif %}
   <div id="page-nav">
     <form id="page-form">
       <input id="page-input" type="number" min="1" value="1"/> / <span id="page-total"></span>
@@ -29,6 +30,7 @@
   <script>
     const TOTAL = {{ total }};
     const DIR_MODE = {{ 'true' if dir_mode else 'false' }};
+    const DEBUG_MODE = {{ 'true' if debug_mode else 'false' }};
   </script>
   <script src="/static/main.js"></script>
 </body>
