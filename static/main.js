@@ -84,13 +84,45 @@ function render(d) {
     h4.textContent = a.filename;
     blk.appendChild(h4);
 
-    const ta = document.createElement('textarea');
-    ta.value = a.content;
-    ta.dataset.filename = a.filename;
-    if (a.filename.endsWith('.system_label_meta_txt')) {
-      ta.disabled = true;
+    const hasFunc = a.functions && a.functions.length;
+    if (hasFunc) {
+      const tbl = document.createElement('table');
+      tbl.className = 'anno-func-table';
+      a.functions.forEach(fn => {
+        const tr = document.createElement('tr');
+        const nameTd = document.createElement('td');
+        nameTd.textContent = fn.name;
+        const valTd = document.createElement('td');
+        valTd.title = fn.value;
+        if (fn.highlight && fn.value.includes(fn.highlight)) {
+          const idx = fn.value.indexOf(fn.highlight);
+          valTd.appendChild(document.createTextNode(fn.value.slice(0, idx)));
+          const span = document.createElement('span');
+          span.className = 'func-match';
+          span.textContent = fn.highlight;
+          valTd.appendChild(span);
+          valTd.appendChild(document.createTextNode(
+            fn.value.slice(idx + fn.highlight.length)));
+        } else {
+          valTd.textContent = fn.value;
+        }
+        tr.appendChild(nameTd);
+        tr.appendChild(valTd);
+        tbl.appendChild(tr);
+      });
+      blk.appendChild(tbl);
     }
-    blk.appendChild(ta);
+
+    if (!hasFunc) {
+      const ta = document.createElement('textarea');
+      ta.value = a.content;
+      ta.dataset.filename = a.filename;
+      if (a.filename.endsWith('.system_label_meta_txt') || a.readonly) {
+        ta.disabled = true;
+        ta.classList.add('readonly');
+      }
+      blk.appendChild(ta);
+    }
 
     annoDiv.appendChild(blk);
   });
@@ -101,6 +133,14 @@ function render(d) {
   const quickBox = document.getElementById('quick-label');
   quickBox.value = quickInit;
   quickBox.focus();
+
+  const hLbl = document.getElementById('hidden-label');
+  if (d.hidden_count && d.hidden_count > 0) {
+    hLbl.textContent = `HIDDEN ${d.hidden_count}`;
+    hLbl.style.display = 'block';
+  } else {
+    hLbl.style.display = 'none';
+  }
 }
 
 /* ---------------- 鍵盤事件 ---------------- */

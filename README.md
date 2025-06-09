@@ -59,6 +59,8 @@ python app.py /data/images --dir        # 以資料夾為單位標註
 # 進入資料夾模式時，命令列與頁面右上會顯示藍色 DIR MODE 標示
 # 啟用除錯標籤
 python app.py /data/images --debug
+# 套用顯示樣板 (JSON/YAML)
+python app.py /data/images --template config.json
 # 查看所有選項
 python app.py -h
 # 伺服器監聽 http://0.0.0.0:{port}
@@ -93,4 +95,50 @@ python app.py -h
 ---
 
 
+
+## 模板設定範例
+
+提供 `--template` 參數時，程式會依照 JSON/YAML 內容決定註解排序、唯讀欄位以及額外函式。函式結果會以二欄表格呈現，滑鼠移至值欄可檢視完整內容。以下為 `examples/template.demo.json` 範例：
+
+```json
+{
+  "ordering": ["meta_json", "WD14_txt", "caption\\d+_txt"],
+  "annotations": {
+    "caption\\d+_txt": {
+      "readonly": false
+    },
+    "OCR_json": {
+      "readonly": true,
+      "functions": [
+        {"name": "first 10 characters", "filter": "data['result'][0]['text'][:10]"}
+      ]
+    },
+    "OCR_txt": {
+      "readonly": true,
+      "functions": [
+        {"name": "Character name", "filter": "Character name :"}
+      ]
+    }
+    , "meta_json": {
+      "readonly": true,
+      "functions": [
+        {"name": "first 10 characters", "filter": "data['author']['nick'][:10]"},
+        {"name": "describe", "filter": "data['author']['description']"},
+        {"name": "describe_post", "filter": "data['content']"}
+      ]
+    }
+  }
+}
+```
+
+啟動時帶入：
+
+```bash
+python app.py /data/images --template examples/template.demo.json
+```
+
+完成後，`caption2_txt` 可直接編輯，`OCR_json` 與 `OCR_txt` 則僅顯示對應函式摘要且禁止修改。
+
+若有標註檔未在模板設定中出現，頁面會隱藏之並於右上角顯示隱藏數量。預設排序規則為
+`meta_json`、`WD14_txt`、`caption\d+_txt`，其餘依字母順序排列。
 

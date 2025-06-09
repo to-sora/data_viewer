@@ -1,0 +1,32 @@
+{
+  "ordering": [
+    "meta_json",
+    "WD14_txt",
+    "caption\\d+_txt"
+  ],
+  "annotations": {
+    "caption\\d+_txt": {
+      "readonly": false
+    },
+    "OCR_json": {
+      "readonly": true,
+      "functions": [
+        {"name": "first 10 characters", "filter": "data['result'][0]['text'][:10]"}
+      ]
+    },
+    "OCR_txt": {
+      "readonly": true,
+      "functions": [
+        {"name": "Character name", "filter": "Character name :"}
+      ]
+    },
+    "meta_json": {
+      "readonly": true,
+      "functions": [
+        {"name": "first 10 characters", "filter": "data['author']['nick'][:10]"},
+        {"name": "describe", "filter": "data['author']['description']"},
+        {"name": "describe_post", "filter": "data['content']"}
+      ]
+    }
+  }
+}

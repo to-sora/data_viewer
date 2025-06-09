@@ -3,11 +3,15 @@
 Dataset Annotator  (port 49145)
 啟動：python app.py <dataset_path> [--dir]
 """
-import sys, io, mimetypes
+import sys, io, mimetypes, json, re
 import argparse
 from pathlib import Path
 from collections import defaultdict, OrderedDict
 from flask import Flask, request, jsonify, render_template, send_file, abort
+try:
+    import yaml  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    yaml = None
 
 # ─── 啟動參數 ──────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser(description='Simple dataset annotator')
@@ -16,6 +20,8 @@ parser.add_argument('--dir', action='store_true',
                     help='Label directories instead of individual files')
 parser.add_argument('--debug', action='store_true',
                     help='Show debug label in UI and CLI output')
+parser.add_argument('--template', type=str,
+                    help='Path to JSON/YAML template configuration')
 cli_args = parser.parse_args()
 
 # ─── 常數 ──────────────────────────────────────────────────────────────
@@ -30,6 +36,44 @@ DIR_MODE          = cli_args.dir
 DEBUG_MODE        = cli_args.debug
 QUICK_LABEL_NAME  = 'system_label_meta_txt'
 DIR_LABEL_NAME    = 'system_label_dir_meta_txt'
+TEMPLATE_CONFIG   = {}
+DEFAULT_ORDERING = ['meta_json', 'WD14_txt', 'caption\\d+_txt']
+ORDERING_PATTERNS: list[re.Pattern] = [re.compile(p) for p in DEFAULT_ORDERING]
+ANNOTATION_RULES: list[tuple[re.Pattern, dict]] = []
+
+if cli_args.template:
+    try:
+        text = Path(cli_args.template).read_text(encoding='utf-8')
+        try:
+            TEMPLATE_CONFIG = json.loads(text)
+        except json.JSONDecodeError:
+            if yaml:
+                TEMPLATE_CONFIG = yaml.safe_load(text) or {}
+            else:
+                print('PyYAML not installed; YAML template unsupported', file=sys.stderr)
+    except Exception as e:
+        print(f'Failed to load template: {e}', file=sys.stderr)
+
+if TEMPLATE_CONFIG:
+    ORDERING_PATTERNS = [re.compile(p) for p in
+                         TEMPLATE_CONFIG.get('ordering', DEFAULT_ORDERING)
+                         if isinstance(p, str)]
+    ann = TEMPLATE_CONFIG.get('annotations') or {}
+    for pat, cfg in ann.items():
+        try:
+            r = re.compile(pat)
+        except re.error as e:  # pragma: no cover - invalid regex
+            print(f'Invalid regex {pat}: {e}', file=sys.stderr)
+            continue
+        rule = {
+            'readonly' : cfg.get('readonly', True),
+            'functions': cfg.get('functions') or []
+        }
+        if rule['functions'] and not rule['readonly']:
+            print(f'Template error: functions require readonly for {pat}',
+                  file=sys.stderr)
+            rule['readonly'] = True
+        ANNOTATION_RULES.append((r, rule))
 
 # ─── Flask 與全域狀態 ───────────────────────────────────────────────────
 app       = Flask(__name__, static_folder='static', static_url_path='/static')
@@ -38,7 +82,7 @@ INDEX: list[dict] = []                      # [{id, media, annos}]
 IMG_CACHE: OrderedDict[Path, bytes] = OrderedDict()
 
 # ─── 建立索引 ──────────────────────────────────────────────────────────
-def build_index(root: Path):
+def build_index(root: Path, template: dict | None = None):
     """
     命名規則  
       filename = A . B  
@@ -52,6 +96,12 @@ def build_index(root: Path):
             rel  = fp.relative_to(root)
             base = str(rel).rsplit('.', 1)[0]
             groups[base].append(fp)
+
+    ordering = []
+    if template:
+        ordering = [re.compile(p) for p in template.get('ordering', []) if isinstance(p, str)]
+    elif ORDERING_PATTERNS:
+        ordering = ORDERING_PATTERNS
 
     for data_id, files in sorted(groups.items()):
         media_candidates = []
@@ -78,6 +128,14 @@ def build_index(root: Path):
                 **{e:3 for e in TEXT_EXTS}}
         media = sorted(media_candidates, key=lambda f: prio[f.suffix.lower()])[0]
 
+        if ordering:
+            def prio_ann(f: Path):
+                for i, pat in enumerate(ordering):
+                    if pat.fullmatch(f.name):
+                        return i
+                return len(ordering)
+            annos.sort(key=lambda f: (prio_ann(f), f.name))
+
         rel_media = media.relative_to(root)
         dir_name  = rel_media.parts[0] if len(rel_media.parts) > 1 else ''
 
@@ -86,7 +144,7 @@ def build_index(root: Path):
                       'annos': annos,
                       'dir'  : dir_name})
 
-build_index(DATA_ROOT)
+build_index(DATA_ROOT, TEMPLATE_CONFIG)
 TOTAL = len(INDEX)
 
 # 依據第一層資料夾建立索引（dir -> 首張 idx）
@@ -113,7 +171,8 @@ def preload(idx: int):
 @app.route('/')
 def home():
     return render_template('index.html', total=TOTAL,
-                           dir_mode=DIR_MODE, debug_mode=DEBUG_MODE)
+                           dir_mode=DIR_MODE, debug_mode=DEBUG_MODE,
+                           template=TEMPLATE_CONFIG)
 
 @app.route('/api/item/<int:idx>')
 def api_item(idx: int):
@@ -127,12 +186,61 @@ def api_item(idx: int):
             'text')
 
     annos = []
+    hidden_count = 0
     for f in ent['annos']:
         try:
             txt = f.read_text(encoding='utf-8', errors='ignore')
         except Exception:
             txt = ''
-        annos.append({'filename': str(f.relative_to(DATA_ROOT)), 'content': txt})
+
+        name_part = f.name.rsplit('.', 1)[1]
+        rule = None
+        for pat, cfg in ANNOTATION_RULES:
+            if pat.fullmatch(name_part):
+                rule = cfg
+                break
+        if TEMPLATE_CONFIG and not rule and not f.name.endswith('.' + QUICK_LABEL_NAME):
+            hidden_count += 1
+            continue
+        readonly = rule['readonly'] if rule else False
+        funcs = []
+        if rule and rule['functions']:
+            ann_ext = '.' + name_part.rsplit('_', 1)[-1].lower()
+            is_json = ann_ext in {'.json', '.yaml', '.yml', '.json5'}
+            data_obj = None
+            if is_json:
+                try:
+                    data_obj = json.loads(txt)
+                except Exception:
+                    if yaml:
+                        try:
+                            data_obj = yaml.safe_load(txt)
+                        except Exception:
+                            data_obj = None
+            lines = txt.splitlines()
+            for fc in rule['functions']:
+                val = ''
+                expr = fc.get('filter', '')
+                highlight = ''
+                if is_json and data_obj is not None:
+                    try:
+                        val = str(eval(expr, {}, {'data': data_obj}))
+                    except Exception:
+                        val = ''
+                else:
+                    for ln in lines:
+                        if expr in ln:
+                            val = ln
+                            highlight = expr
+                            break
+                funcs.append({'name': fc.get('name', ''),
+                              'value': val,
+                              'highlight': highlight})
+
+        annos.append({'filename': str(f.relative_to(DATA_ROOT)),
+                      'content': txt,
+                      'readonly': readonly,
+                      'functions': funcs})
 
     dir_name = ent['dir']
     dir_path = DATA_ROOT / dir_name if dir_name else DATA_ROOT
@@ -158,10 +266,12 @@ def api_item(idx: int):
         'media_kind'  : kind,
         'media_name'  : str(fp.relative_to(DATA_ROOT)),
         'annotations' : annos,
+        'template'    : TEMPLATE_CONFIG,
         'dir_name'    : dir_name,
         'dir_label'   : dir_label,
         'dir_prev_idx': dir_prev_idx,
-        'dir_next_idx': dir_next_idx
+        'dir_next_idx': dir_next_idx,
+        'hidden_count': hidden_count
     })
 
 @app.route('/api/item/<int:idx>', methods=['POST'])

@@ -8,6 +8,7 @@
 <body>
   {% if debug_mode %}<div id="debug-label">DEBUG</div>{% endif %}
   {% if dir_mode %}<div id="dir-label">DIR MODE</div>{% endif %}
+  <div id="hidden-label"></div>
   <div id="page-nav">
     <form id="page-form">
       <input id="page-input" type="number" min="1" value="1"/> / <span id="page-total"></span>
@@ -32,6 +33,7 @@
     const TOTAL = {{ total }};
     const DIR_MODE = {{ 'true' if dir_mode else 'false' }};
     const DEBUG_MODE = {{ 'true' if debug_mode else 'false' }};
+    const TEMPLATE_CONFIG = {{ template|tojson }};
   </script>
   <script src="/static/main.js"></script>
 </body>
