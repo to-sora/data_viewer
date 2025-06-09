@@ -200,7 +200,8 @@ def api_item(idx: int):
         readonly = rule['readonly'] if rule else False
         funcs = []
         if rule and rule['functions']:
-            is_json = f.suffix.lower() in {'.json', '.yaml', '.yml', '.json5'}
+            ann_ext = '.' + name_part.rsplit('_', 1)[-1].lower()
+            is_json = ann_ext in {'.json', '.yaml', '.yml', '.json5'}
             data_obj = None
             if is_json:
                 try:
