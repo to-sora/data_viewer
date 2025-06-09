@@ -59,6 +59,8 @@ python app.py /data/images --dir        # 以資料夾為單位標註
 # 進入資料夾模式時，命令列與頁面右上會顯示藍色 DIR MODE 標示
 # 啟用除錯標籤
 python app.py /data/images --debug
+# 套用顯示樣板 (JSON/YAML)
+python app.py /data/images --template config.json
 # 查看所有選項
 python app.py -h
 # 伺服器監聽 http://0.0.0.0:{port}

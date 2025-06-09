@@ -84,11 +84,27 @@ function render(d) {
     h4.textContent = a.filename;
     blk.appendChild(h4);
 
+    if (a.functions && a.functions.length) {
+      const tbl = document.createElement('table');
+      tbl.className = 'anno-func-table';
+      a.functions.forEach(fn => {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.textContent = fn.name;
+        if (fn.value)
+          td.title = fn.value;
+        tr.appendChild(td);
+        tbl.appendChild(tr);
+      });
+      blk.appendChild(tbl);
+    }
+
     const ta = document.createElement('textarea');
     ta.value = a.content;
     ta.dataset.filename = a.filename;
-    if (a.filename.endsWith('.system_label_meta_txt')) {
+    if (a.filename.endsWith('.system_label_meta_txt') || a.readonly) {
       ta.disabled = true;
+      ta.classList.add('readonly');
     }
     blk.appendChild(ta);
 

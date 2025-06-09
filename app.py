@@ -37,6 +37,8 @@ DEBUG_MODE        = cli_args.debug
 QUICK_LABEL_NAME  = 'system_label_meta_txt'
 DIR_LABEL_NAME    = 'system_label_dir_meta_txt'
 TEMPLATE_CONFIG   = {}
+ORDERING_PATTERNS: list[re.Pattern] = []
+ANNOTATION_RULES: list[tuple[re.Pattern, dict]] = []
 
 if cli_args.template:
     try:
@@ -50,6 +52,27 @@ if cli_args.template:
                 print('PyYAML not installed; YAML template unsupported', file=sys.stderr)
     except Exception as e:
         print(f'Failed to load template: {e}', file=sys.stderr)
+
+if TEMPLATE_CONFIG:
+    ORDERING_PATTERNS = [re.compile(p) for p in
+                         TEMPLATE_CONFIG.get('ordering', [])
+                         if isinstance(p, str)]
+    ann = TEMPLATE_CONFIG.get('annotations') or {}
+    for pat, cfg in ann.items():
+        try:
+            r = re.compile(pat)
+        except re.error as e:  # pragma: no cover - invalid regex
+            print(f'Invalid regex {pat}: {e}', file=sys.stderr)
+            continue
+        rule = {
+            'readonly' : cfg.get('readonly', True),
+            'functions': cfg.get('functions') or []
+        }
+        if rule['functions'] and not rule['readonly']:
+            print(f'Template error: functions require readonly for {pat}',
+                  file=sys.stderr)
+            rule['readonly'] = True
+        ANNOTATION_RULES.append((r, rule))
 
 # ─── Flask 與全域狀態 ───────────────────────────────────────────────────
 app       = Flask(__name__, static_folder='static', static_url_path='/static')
@@ -76,6 +99,8 @@ def build_index(root: Path, template: dict | None = None):
     ordering = []
     if template:
         ordering = [re.compile(p) for p in template.get('ordering', []) if isinstance(p, str)]
+    elif ORDERING_PATTERNS:
+        ordering = ORDERING_PATTERNS
 
     for data_id, files in sorted(groups.items()):
         media_candidates = []
@@ -165,7 +190,47 @@ def api_item(idx: int):
             txt = f.read_text(encoding='utf-8', errors='ignore')
         except Exception:
             txt = ''
-        annos.append({'filename': str(f.relative_to(DATA_ROOT)), 'content': txt})
+
+        name_part = f.name.rsplit('.', 1)[1]
+        rule = None
+        for pat, cfg in ANNOTATION_RULES:
+            if pat.fullmatch(name_part):
+                rule = cfg
+                break
+        readonly = rule['readonly'] if rule else False
+        funcs = []
+        if rule and rule['functions']:
+            is_json = f.suffix.lower() in {'.json', '.yaml', '.yml', '.json5'}
+            data_obj = None
+            if is_json:
+                try:
+                    data_obj = json.loads(txt)
+                except Exception:
+                    if yaml:
+                        try:
+                            data_obj = yaml.safe_load(txt)
+                        except Exception:
+                            data_obj = None
+            lines = txt.splitlines()
+            for fc in rule['functions']:
+                val = ''
+                expr = fc.get('filter', '')
+                if is_json and data_obj is not None:
+                    try:
+                        val = str(eval(expr, {}, {'data': data_obj}))
+                    except Exception:
+                        val = ''
+                else:
+                    for ln in lines:
+                        if expr in ln:
+                            val = ln
+                            break
+                funcs.append({'name': fc.get('name', ''), 'value': val})
+
+        annos.append({'filename': str(f.relative_to(DATA_ROOT)),
+                      'content': txt,
+                      'readonly': readonly,
+                      'functions': funcs})
 
     dir_name = ent['dir']
     dir_path = DATA_ROOT / dir_name if dir_name else DATA_ROOT
