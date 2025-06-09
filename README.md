@@ -96,3 +96,38 @@ python app.py -h
 
 
 
+## 模板設定範例
+
+提供 `--template` 參數時，程式會依照 JSON/YAML 內容決定註解排序、唯讀欄位以及額外函式。以下為 `examples/template.demo.json` 範例：
+
+```json
+{
+  "ordering": ["caption\\d+_txt", "OCR_json", "OCR_txt"],
+  "annotations": {
+    "caption\\d+_txt": {
+      "readonly": false
+    },
+    "OCR_json": {
+      "readonly": true,
+      "functions": [
+        {"name": "first 10 characters", "filter": "data['result'][0]['text'][:10]"}
+      ]
+    },
+    "OCR_txt": {
+      "readonly": true,
+      "functions": [
+        {"name": "Character name", "filter": "Character name :"}
+      ]
+    }
+  }
+}
+```
+
+啟動時帶入：
+
+```bash
+python app.py /data/images --template examples/template.demo.json
+```
+
+完成後，`caption2_txt` 可直接編輯，`OCR_json` 與 `OCR_txt` 則僅顯示對應函式摘要且禁止修改。
+
