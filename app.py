@@ -1,12 +1,22 @@
 #!/usr/bin/env python
 """
 Dataset Annotator  (port 49145)
-啟動：python app.py /absolute/path/to/dataset
+啟動：python app.py <dataset_path> [--dir]
 """
 import sys, io, mimetypes
+import argparse
 from pathlib import Path
 from collections import defaultdict, OrderedDict
 from flask import Flask, request, jsonify, render_template, send_file, abort
+
+# ─── 啟動參數 ──────────────────────────────────────────────────────────
+parser = argparse.ArgumentParser(description='Simple dataset annotator')
+parser.add_argument('dataset_path', help='Path to dataset root')
+parser.add_argument('--dir', action='store_true',
+                    help='Label directories instead of individual files')
+parser.add_argument('--debug', action='store_true',
+                    help='Show debug label in UI and CLI output')
+cli_args = parser.parse_args()
 
 # ─── 常數 ──────────────────────────────────────────────────────────────
 IMAGE_EXTS   = {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif'}
@@ -14,13 +24,16 @@ VIDEO_EXTS   = {'.mp4', '.mov', '.avi', '.mkv'}
 AUDIO_EXTS   = {'.mp3', '.wav', '.ogg'}
 TEXT_EXTS    = {'.txt', '.csv', '.json', '.yaml', '.yml'}
 
-MEDIA_FILE_EXTS = IMAGE_EXTS | VIDEO_EXTS | AUDIO_EXTS | TEXT_EXTS
-CACHE_SIZE       = 5
-QUICK_LABEL_NAME = 'system_label_meta_txt'
+MEDIA_FILE_EXTS  = IMAGE_EXTS | VIDEO_EXTS | AUDIO_EXTS | TEXT_EXTS
+CACHE_SIZE        = 5
+DIR_MODE          = cli_args.dir
+DEBUG_MODE        = cli_args.debug
+QUICK_LABEL_NAME  = 'system_label_meta_txt'
+DIR_LABEL_NAME    = 'system_label_dir_meta_txt'
 
 # ─── Flask 與全域狀態 ───────────────────────────────────────────────────
 app       = Flask(__name__, static_folder='static', static_url_path='/static')
-DATA_ROOT = Path(sys.argv[1]).expanduser().resolve()
+DATA_ROOT = Path(cli_args.dataset_path).expanduser().resolve()
 INDEX: list[dict] = []                      # [{id, media, annos}]
 IMG_CACHE: OrderedDict[Path, bytes] = OrderedDict()
 
@@ -65,10 +78,26 @@ def build_index(root: Path):
                 **{e:3 for e in TEXT_EXTS}}
         media = sorted(media_candidates, key=lambda f: prio[f.suffix.lower()])[0]
 
-        INDEX.append({'id': data_id, 'media': media, 'annos': annos})
+        rel_media = media.relative_to(root)
+        dir_name  = rel_media.parts[0] if len(rel_media.parts) > 1 else ''
+
+        INDEX.append({'id': data_id,
+                      'media': media,
+                      'annos': annos,
+                      'dir'  : dir_name})
 
 build_index(DATA_ROOT)
 TOTAL = len(INDEX)
+
+# 依據第一層資料夾建立索引（dir -> 首張 idx）
+DIR_FIRST_IDX: dict[str, int] = {}
+DIR_ORDER: list[str] = []
+for i, ent in enumerate(INDEX):
+    d = ent['dir']
+    if d not in DIR_FIRST_IDX:
+        DIR_FIRST_IDX[d] = i
+        DIR_ORDER.append(d)
+
 
 # ─── 快取 ──────────────────────────────────────────────────────────────
 def preload(idx: int):
@@ -83,7 +112,8 @@ def preload(idx: int):
 # ─── API ──────────────────────────────────────────────────────────────
 @app.route('/')
 def home():
-    return render_template('index.html', total=TOTAL)
+    return render_template('index.html', total=TOTAL,
+                           dir_mode=DIR_MODE, debug_mode=DEBUG_MODE)
 
 @app.route('/api/item/<int:idx>')
 def api_item(idx: int):
@@ -104,14 +134,34 @@ def api_item(idx: int):
             txt = ''
         annos.append({'filename': str(f.relative_to(DATA_ROOT)), 'content': txt})
 
+    dir_name = ent['dir']
+    dir_path = DATA_ROOT / dir_name if dir_name else DATA_ROOT
+    dir_label = ''
+    dl_file = dir_path / DIR_LABEL_NAME
+    if dl_file.exists():
+        try:
+            dir_label = dl_file.read_text(encoding='utf-8', errors='ignore').strip()
+        except Exception:
+            dir_label = ''
+
+    dpos = DIR_ORDER.index(dir_name)
+    prev_dir = DIR_ORDER[(dpos - 1) % len(DIR_ORDER)]
+    next_dir = DIR_ORDER[(dpos + 1) % len(DIR_ORDER)]
+    dir_prev_idx = DIR_FIRST_IDX[prev_dir]
+    dir_next_idx = DIR_FIRST_IDX[next_dir]
+
     preload(idx)
     return jsonify({
-        'idx'        : idx,
-        'id'         : ent['id'],
-        'media_url'  : f'/file/{fp.relative_to(DATA_ROOT)}',
-        'media_kind' : kind,
-        'media_name' : str(fp.relative_to(DATA_ROOT)),
-        'annotations': annos
+        'idx'         : idx,
+        'id'          : ent['id'],
+        'media_url'   : f'/file/{fp.relative_to(DATA_ROOT)}',
+        'media_kind'  : kind,
+        'media_name'  : str(fp.relative_to(DATA_ROOT)),
+        'annotations' : annos,
+        'dir_name'    : dir_name,
+        'dir_label'   : dir_label,
+        'dir_prev_idx': dir_prev_idx,
+        'dir_next_idx': dir_next_idx
     })
 
 @app.route('/api/item/<int:idx>', methods=['POST'])
@@ -131,10 +181,15 @@ def api_save(idx: int):
     # 2. 快速標籤
     quick = (payload.get('quick_label') or '').strip()
     if quick:
-        qpath = DATA_ROOT / f'{ent["id"]}.{QUICK_LABEL_NAME}'
-        qpath.write_text(quick+'\n', encoding='utf-8')
-        if qpath not in ent['annos']:
-            ent['annos'].append(qpath)
+        if DIR_MODE:
+            dpath = DATA_ROOT / (ent['dir'] or '')
+            qpath = dpath / DIR_LABEL_NAME
+            qpath.write_text(quick + '\n', encoding='utf-8')
+        else:
+            qpath = DATA_ROOT / f'{ent["id"]}.{QUICK_LABEL_NAME}'
+            qpath.write_text(quick + '\n', encoding='utf-8')
+            if qpath not in ent['annos']:
+                ent['annos'].append(qpath)
 
     return jsonify({'status': 'ok'})
 
@@ -151,4 +206,8 @@ def serve_file(fname):
 if __name__ == '__main__':
     print(f'📂 Dataset: {DATA_ROOT}')
     print(f'🔢 Total  : {TOTAL} items')
+    if DIR_MODE:
+        print('📁 DIRECTORY MODE')
+    if DEBUG_MODE:
+        print('🛠 DEBUG MODE')
     app.run(host='0.0.0.0', port=49145, threaded=True)
