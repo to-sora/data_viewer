@@ -48,9 +48,17 @@ CONFIG_FILE = Path('config.yaml')
 CONFIG      = {}
 PASSWORD    = ''
 SECRET_KEY  = 'secret'
-if CONFIG_FILE.exists() and yaml:
+if CONFIG_FILE.exists():
     try:
-        CONFIG = yaml.safe_load(CONFIG_FILE.read_text()) or {}
+        if yaml:
+            CONFIG = yaml.safe_load(CONFIG_FILE.read_text()) or {}
+        else:
+            CONFIG = {}
+            for line in CONFIG_FILE.read_text().splitlines():
+                line = line.split('#', 1)[0].strip()
+                if ':' in line:
+                    k, v = line.split(':', 1)
+                    CONFIG[k.strip()] = v.strip()
         PASSWORD   = str(CONFIG.get('password', ''))
         SECRET_KEY = str(CONFIG.get('secret_key', SECRET_KEY))
     except Exception:

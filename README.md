@@ -51,7 +51,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # 3. 安裝依賴
-pip install flask cryptography
+pip install flask cryptography pyyaml
 
 # 4. 啟動（假設資料集位於 /data/images）
 python app.py /data/images              # 一般檔案模式
