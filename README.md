@@ -142,3 +142,19 @@ python app.py /data/images --template examples/template.demo.json
 若有標註檔未在模板設定中出現，頁面會隱藏之並於右上角顯示隱藏數量。預設排序規則為
 `meta_json`、`WD14_txt`、`caption\d+_txt`，其餘依字母順序排列。
 
+
+---
+
+## 篩選資料集腳本
+
+新增 `filter_dataset.py`，可依照 `system_label_meta_txt` 或資料夾的 `system_label_dir_meta_txt` 內容篩選並複製/移動檔案。
+
+```bash
+python filter_dataset.py <input_dir> <output_dir> --expr "'A' in x" \
+    --filter-mode item --ext jpg,png --mode copy
+```
+
+- `--expr`：以 `x` 代表標籤文字的 Python 表達式
+- `--filter-mode`：`item`（預設）或 `dir`
+- `--ext`：要處理的媒體副檔名，逗號分隔，預設全選
+- `--mode`：`copy` 或 `move`
