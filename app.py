@@ -24,6 +24,8 @@ parser.add_argument('--debug', action='store_true',
                     help='Show debug label in UI and CLI output')
 parser.add_argument('--template', type=str,
                     help='Path to JSON/YAML template configuration')
+parser.add_argument('--no-login', action='store_true',
+                    help='Bypass login even if password is set')
 cli_args = parser.parse_args()
 
 # ─── 常數 ──────────────────────────────────────────────────────────────
@@ -36,6 +38,7 @@ MEDIA_FILE_EXTS  = IMAGE_EXTS | VIDEO_EXTS | AUDIO_EXTS | TEXT_EXTS
 CACHE_SIZE        = 5
 DIR_MODE          = cli_args.dir
 DEBUG_MODE        = cli_args.debug
+BYPASS_LOGIN     = cli_args.no_login
 QUICK_LABEL_NAME  = 'system_label_meta_txt'
 DIR_LABEL_NAME    = 'system_label_dir_meta_txt'
 TEMPLATE_CONFIG   = {}
@@ -214,7 +217,7 @@ def preload(idx: int):
 # ─── 認證 ─────────────────────────────────────────────────────────────
 @app.before_request
 def require_login():
-    if not PASSWORD:
+    if not PASSWORD or BYPASS_LOGIN:
         return
     if request.path.startswith('/static') or request.endpoint in ('login', 'api_encrypt', 'api_decrypt') or request.path.startswith('/file'):
         return
@@ -226,7 +229,7 @@ def require_login():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if not PASSWORD:
+    if not PASSWORD or BYPASS_LOGIN:
         return redirect(url_for('home'))
     err = ''
     if request.method == 'POST':
