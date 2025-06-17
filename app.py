@@ -186,9 +186,10 @@ def build_index(root: Path, template: dict | None = None):
         media = sorted(media_candidates, key=lambda f: prio[f.suffix.lower()])[0]
 
         if ordering:
-            def prio_ann(f: Path):
+            def prio_ann(f: Path) -> int:
+                name_part = f.name.rsplit('.', 1)[1]
                 for i, pat in enumerate(ordering):
-                    if pat.fullmatch(f.name):
+                    if pat.fullmatch(name_part):
                         return i
                 return len(ordering)
             annos.sort(key=lambda f: (prio_ann(f), f.name))
