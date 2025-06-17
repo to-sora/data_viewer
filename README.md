@@ -158,4 +158,5 @@ secret_key: secret123
 
 設定密碼後瀏覽器會先顯示登入頁，並提供 `/api/encrypt` 與 `/api/decrypt` 兩個 API
 透過 [Fernet](https://cryptography.io/en/latest/) 進行 AES 加解密。
+Fernet 金鑰透過 PBKDF2 以密碼推導，預設 100000 次迭代。
 若啟動時加入 `--no-login` 參數，則會略過登入流程。

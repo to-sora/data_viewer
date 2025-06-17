@@ -4,6 +4,9 @@ Dataset Annotator  (port 49145)
 啟動：python app.py <dataset_path> [--dir]
 """
 import sys, io, mimetypes, json, re, base64, hashlib
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.backends import default_backend
 import argparse
 from pathlib import Path
 from collections import defaultdict, OrderedDict
@@ -110,9 +113,16 @@ IMG_CACHE: OrderedDict[Path, bytes] = OrderedDict()
 
 # ─── 標準加解密函式 (Fernet) ─────────────────────────────────────────────
 FERNET: Fernet | None = None
+PBKDF2_SALT = b"data_viewer_salt"
 if PASSWORD:
-    key = hashlib.sha256(PASSWORD.encode("utf-8")).digest()
-    key = base64.urlsafe_b64encode(key)
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=PBKDF2_SALT,
+        iterations=100_000,
+        backend=default_backend(),
+    )
+    key = base64.urlsafe_b64encode(kdf.derive(PASSWORD.encode("utf-8")))
     FERNET = Fernet(key)
 
 def encrypt(text: str) -> str:
