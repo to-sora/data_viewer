@@ -5,6 +5,7 @@ let dirMode = DIR_MODE;
 let debugMode = typeof DEBUG_MODE !== 'undefined' ? DEBUG_MODE : false;
 let currentIdx = 0;
 const cacheItems = {};      // idx -> item json
+let currentImg = null;      // currently displayed image for resize
 
 /* ---------------- 初始化 ------------------ */
 window.addEventListener("DOMContentLoaded", () => {
@@ -22,6 +23,9 @@ window.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     const val = parseInt(document.getElementById("page-input").value);
     if(!isNaN(val)) loadItem(Math.min(Math.max(val-1,0), TOTAL-1));
+  });
+  window.addEventListener('resize', () => {
+    if(currentImg) updateResolution(currentImg);
   });
 });
 /* ---------------- 資料載入 ---------------- */
@@ -49,21 +53,27 @@ function render(d) {
   area.innerHTML = '';
 
   if (d.media_kind === 'image') {
-    const img = new Image(); img.src = d.media_url;
+    const img = new Image();
+    img.src = d.media_url;
+    img.onload = () => updateResolution(img);
+    currentImg = img;
     area.appendChild(img);
   } else if (d.media_kind === 'video') {
     const v = document.createElement('video');
     v.src = d.media_url; v.controls = true; v.preload = 'auto';
     area.appendChild(v);
+    currentImg = null;
   } else if (d.media_kind === 'audio') {
     const a = document.createElement('audio');
     a.src = d.media_url; a.controls = true; a.preload = 'auto';
     area.appendChild(a);
+    currentImg = null;
   } else {  // text
     fetch(d.media_url).then(r => r.text()).then(txt => {
       const pre = document.createElement('pre'); pre.textContent = txt;
       area.appendChild(pre);
     });
+    currentImg = null;
   }
 
   /* ── 右側 annotations ───────────────────*/
@@ -141,6 +151,23 @@ function render(d) {
   } else {
     hLbl.style.display = 'none';
   }
+}
+
+function updateResolution(img) {
+  const resDiv = document.getElementById('resolution-info');
+  if (!img) {
+    resDiv.textContent = '';
+    resDiv.classList.remove('red');
+    return;
+  }
+  const navH = document.getElementById('page-nav').offsetHeight || 0;
+  const resH = resDiv.offsetHeight || 0;
+  const availH = window.innerHeight - navH - resH;
+  img.style.maxHeight = availH + 'px';
+  resDiv.textContent = `${img.naturalWidth} x ${img.naturalHeight}`;
+  const scaled = img.clientWidth < img.naturalWidth ||
+                 img.clientHeight < img.naturalHeight;
+  if (scaled) resDiv.classList.add('red'); else resDiv.classList.remove('red');
 }
 
 /* ---------------- 鍵盤事件 ---------------- */
