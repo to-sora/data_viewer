@@ -51,7 +51,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # 3. 安裝依賴
-pip install flask
+pip install flask cryptography pyyaml
 
 # 4. 啟動（假設資料集位於 /data/images）
 python app.py /data/images              # 一般檔案模式
@@ -61,6 +61,8 @@ python app.py /data/images --dir        # 以資料夾為單位標註
 python app.py /data/images --debug
 # 套用顯示樣板 (JSON/YAML)
 python app.py /data/images --template config.json
+# 跳過登入驗證
+python app.py /data/images --no-login
 # 查看所有選項
 python app.py -h
 # 伺服器監聽 http://0.0.0.0:{port}
@@ -142,3 +144,19 @@ python app.py /data/images --template examples/template.demo.json
 若有標註檔未在模板設定中出現，頁面會隱藏之並於右上角顯示隱藏數量。預設排序規則為
 `meta_json`、`WD14_txt`、`caption\d+_txt`，其餘依字母順序排列。
 
+
+---
+
+## 登入與加密
+
+程式啟動目錄可放置 `config.yaml` 來設定密碼與 Flask `secret_key`：
+
+```yaml
+password: changeme
+secret_key: secret123
+```
+
+設定密碼後瀏覽器會先顯示登入頁，並提供 `/api/encrypt` 與 `/api/decrypt` 兩個 API
+透過 [Fernet](https://cryptography.io/en/latest/) 進行 AES 加解密。
+Fernet 金鑰透過 PBKDF2 以密碼推導，預設 100000 次迭代。
+若啟動時加入 `--no-login` 參數，則會略過登入流程。

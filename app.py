@@ -3,11 +3,16 @@
 Dataset Annotator  (port 49145)
 啟動：python app.py <dataset_path> [--dir]
 """
-import sys, io, mimetypes, json, re
+import sys, io, mimetypes, json, re, base64, hashlib
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.backends import default_backend
 import argparse
 from pathlib import Path
 from collections import defaultdict, OrderedDict
-from flask import Flask, request, jsonify, render_template, send_file, abort
+from flask import (Flask, request, jsonify, render_template, send_file,
+                   abort, session, redirect, url_for)
+from cryptography.fernet import Fernet
 try:
     import yaml  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
@@ -22,6 +27,8 @@ parser.add_argument('--debug', action='store_true',
                     help='Show debug label in UI and CLI output')
 parser.add_argument('--template', type=str,
                     help='Path to JSON/YAML template configuration')
+parser.add_argument('--no-login', action='store_true',
+                    help='Bypass login even if password is set')
 cli_args = parser.parse_args()
 
 # ─── 常數 ──────────────────────────────────────────────────────────────
@@ -34,12 +41,34 @@ MEDIA_FILE_EXTS  = IMAGE_EXTS | VIDEO_EXTS | AUDIO_EXTS | TEXT_EXTS
 CACHE_SIZE        = 5
 DIR_MODE          = cli_args.dir
 DEBUG_MODE        = cli_args.debug
+BYPASS_LOGIN     = cli_args.no_login
 QUICK_LABEL_NAME  = 'system_label_meta_txt'
 DIR_LABEL_NAME    = 'system_label_dir_meta_txt'
 TEMPLATE_CONFIG   = {}
 DEFAULT_ORDERING = ['meta_json', 'WD14_txt', 'caption\\d+_txt']
 ORDERING_PATTERNS: list[re.Pattern] = [re.compile(p) for p in DEFAULT_ORDERING]
 ANNOTATION_RULES: list[tuple[re.Pattern, dict]] = []
+
+# ─── 讀取本地配置 ───────────────────────────────────────────────────────
+CONFIG_FILE = Path('config.yaml')
+CONFIG      = {}
+PASSWORD    = ''
+SECRET_KEY  = 'secret'
+if CONFIG_FILE.exists():
+    try:
+        if yaml:
+            CONFIG = yaml.safe_load(CONFIG_FILE.read_text()) or {}
+        else:
+            CONFIG = {}
+            for line in CONFIG_FILE.read_text().splitlines():
+                line = line.split('#', 1)[0].strip()
+                if ':' in line:
+                    k, v = line.split(':', 1)
+                    CONFIG[k.strip()] = v.strip()
+        PASSWORD   = str(CONFIG.get('password', ''))
+        SECRET_KEY = str(CONFIG.get('secret_key', SECRET_KEY))
+    except Exception:
+        CONFIG = {}
 
 if cli_args.template:
     try:
@@ -77,9 +106,37 @@ if TEMPLATE_CONFIG:
 
 # ─── Flask 與全域狀態 ───────────────────────────────────────────────────
 app       = Flask(__name__, static_folder='static', static_url_path='/static')
+app.secret_key = SECRET_KEY
 DATA_ROOT = Path(cli_args.dataset_path).expanduser().resolve()
 INDEX: list[dict] = []                      # [{id, media, annos}]
 IMG_CACHE: OrderedDict[Path, bytes] = OrderedDict()
+
+# ─── 標準加解密函式 (Fernet) ─────────────────────────────────────────────
+FERNET: Fernet | None = None
+PBKDF2_SALT = b"data_viewer_salt"
+if PASSWORD:
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=PBKDF2_SALT,
+        iterations=100_000,
+        backend=default_backend(),
+    )
+    key = base64.urlsafe_b64encode(kdf.derive(PASSWORD.encode("utf-8")))
+    FERNET = Fernet(key)
+
+def encrypt(text: str) -> str:
+    if not FERNET:
+        return text
+    return FERNET.encrypt(text.encode("utf-8")).decode("utf-8")
+
+def decrypt(text: str) -> str:
+    if not FERNET:
+        return text
+    try:
+        return FERNET.decrypt(text.encode("utf-8")).decode("utf-8")
+    except Exception:
+        return ''
 
 # ─── 建立索引 ──────────────────────────────────────────────────────────
 def build_index(root: Path, template: dict | None = None):
@@ -166,6 +223,31 @@ def preload(idx: int):
                 if len(IMG_CACHE) >= CACHE_SIZE:
                     IMG_CACHE.popitem(last=False)
                 IMG_CACHE[fp] = fp.read_bytes()
+
+# ─── 認證 ─────────────────────────────────────────────────────────────
+@app.before_request
+def require_login():
+    if not PASSWORD or BYPASS_LOGIN:
+        return
+    if request.path.startswith('/static') or request.endpoint in ('login', 'api_encrypt', 'api_decrypt') or request.path.startswith('/file'):
+        return
+    if session.get('logged_in'):
+        return
+    if request.path.startswith('/api'):
+        return abort(401)
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if not PASSWORD or BYPASS_LOGIN:
+        return redirect(url_for('home'))
+    err = ''
+    if request.method == 'POST':
+        if request.form.get('password') == PASSWORD:
+            session['logged_in'] = True
+            return redirect(url_for('home'))
+        err = 'Invalid password'
+    return render_template('login.html', error=err)
 
 # ─── API ──────────────────────────────────────────────────────────────
 @app.route('/')
@@ -302,6 +384,18 @@ def api_save(idx: int):
                 ent['annos'].append(qpath)
 
     return jsonify({'status': 'ok'})
+
+@app.route('/api/encrypt', methods=['POST'])
+def api_encrypt():
+    data = request.get_json(force=True)
+    txt = data.get('text', '')
+    return jsonify({'result': encrypt(txt)})
+
+@app.route('/api/decrypt', methods=['POST'])
+def api_decrypt():
+    data = request.get_json(force=True)
+    txt = data.get('text', '')
+    return jsonify({'result': decrypt(txt)})
 
 @app.route('/file/<path:fname>')
 def serve_file(fname):

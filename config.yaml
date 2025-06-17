@@ -1,0 +1,3 @@
+# Sample configuration
+password: changeme
+secret_key: secret123
